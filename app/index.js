@@ -50,8 +50,33 @@ const devices = require('./devices.js');
 
           // Load page and create full page screenshot
           await page.goto(url, {waitUntil: 'networkidle2'});
-          await page.screenshot({path: deviceDirectory + imageName, fullPage: true});
-      }
+          // scroll the page to capture lazyload
+          await page.evaluate(_ => {
+            window.scrollBy(0, document.body.scrollHeight);
+          });
+
+        
+          // await page.screenshot({path: deviceDirectory + imageName, fullPage: true});
+          
+          // breakup pages longer than 16384px
+
+          const {contentSize} = await page._client.send('Page.getLayoutMetrics');
+          const dpr = page.viewport().deviceScaleFactor || 1;
+          const maxScreenshotHeight = Math.floor(16 * 1024 / dpr); // Hardcoded max texture size of 16,384 (crbug.com/770769)
+          
+          for (let ypos = 0; ypos < contentSize.height; ypos += maxScreenshotHeight) {
+            const height = Math.min(contentSize.height - ypos, maxScreenshotHeight);
+            await page.screenshot({
+              path: deviceDirectory + imageName,
+              clip: {
+                x: 0,
+                y: ypos,
+                width: contentSize.width,
+                height
+              }
+            });
+        }
+    }
     }
 
     await browser.close();
